@@ -6,7 +6,8 @@ module noc_tb();
     logic nocr_ready;
     logic pack_valid;
     logic nocr_valid;
-    logic [7:0]reserve_buffer,response_buffer,data_buffer,control_buffer;
+    logic [7:0] reserve_buffer, response_buffer, data_buffer, control_buffer;
+
     noc NOC(
         .clk(clk),
         .reset(reset),
@@ -30,10 +31,13 @@ module noc_tb();
     initial begin
         reset_sequence();
         @(posedge clk);
-        fork
-            driver();
-            monitor();
-        join
+        repeat (10) begin
+            fork
+                driver();
+                monitor();
+            join
+        end
+        $finish;
     end
 
     task reset_sequence();
@@ -55,6 +59,7 @@ module noc_tb();
             end
             @(posedge clk); // Allow the packet to be captured by NoC
             pack_valid = 1'b0; // Deassert pack_valid
+            @(posedge clk);
         end    
     endtask
 
@@ -64,39 +69,34 @@ module noc_tb();
         while (!nocr_valid) begin
             @(posedge clk); 
         end
-        if (packet[4:3] == 2'b00)begin
-            if (packet[11:4] == data_buffer)begin
+
+        // Checking buffers based on the packet type
+        if (packet[3:2] == 2'b00) begin
+            if (packet[11:4] == data_buffer) begin
                 $display("Test Passed");
+            end else begin 
+                $display("Test Failed: Expected data_buffer = %h, got %h", data_buffer, packet[11:4]);
             end
-            else begin 
-                $display("Test Failed");
+        end else if (packet[3:2] == 2'b01) begin
+            if (packet[11:4] == control_buffer) begin
+                $display("Test Passed");
+            end else begin 
+                $display("Test Failed: Expected control_buffer = %h, got %h", control_buffer, packet[11:4]);
+            end
+        end else if (packet[3:2] == 2'b11) begin
+            if (packet[11:4] == reserve_buffer) begin
+                $display("Test Passed");
+            end else begin 
+                $display("Test Failed: Expected reserve_buffer = %h, got %h", reserve_buffer, packet[11:4]);
+            end
+        end else if (packet[3:2] == 2'b10) begin
+            if (packet[11:4] == response_buffer) begin
+                $display("Test Passed");
+            end else begin 
+                $display("Test Failed: Expected response_buffer = %h, got %h", response_buffer, packet[11:4]);
             end
         end
-        else if (packet[4:3] == 2'b01)begin
-            if (packet[11:4] == control_buffer)begin
-                $display("Test Passed");
-            end
-            else begin 
-                $display("Test Failed");
-            end
-        end
-        else if (packet[4:3] == 2'b11)begin
-            if (packet[11:4] == reserve_buffer)begin
-                $display("Test Passed");
-            end
-            else begin 
-                $display("Test Failed");
-            end
-        end
-        else if (packet[4:3] == 2'b10)begin
-            if (packet[11:4] == response_buffer)begin
-                $display("Test Passed");
-            end
-            else begin 
-                $display("Test Failed");
-            end
-        end
-        
+        @(posedge clk);
         pack_gen_ready = 1'b0;
     endtask 
 
